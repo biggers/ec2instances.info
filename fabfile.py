@@ -1,10 +1,13 @@
+from __future__ import print_function
 # To use this script you must have the following environment variables set:
 #   AWS_ACCESS_KEY_ID
 #   AWS_SECRET_ACCESS_KEY
 # as explained in: http://boto.s3.amazonaws.com/s3_tut.html
 
-import SimpleHTTPServer
-import SocketServer
+from future import standard_library
+standard_library.install_aliases()
+import http.server
+import socketserver
 import os
 import traceback
 
@@ -17,6 +20,7 @@ from fabric.contrib.console import confirm
 from rds import scrape as rds_scrape
 from render import render
 from scrape import scrape
+from debugging import debug_on
 
 BUCKET_NAME = 'www.ec2instances.info'
 
@@ -28,9 +32,11 @@ abspath = lambda filename: os.path.join(os.path.abspath(os.path.dirname(__file__
                                         filename)
 
 FAB_HOST = os.getenv('FAB_HOST', '127.0.0.1')
-FAB_PORT = os.getenv('FAB_PORT', '')
+FAB_PORT = os.getenv('FAB_PORT', '9999')
+
 
 @task
+@debug_on(IndexError, KeyError, TypeError)
 def build():
     """Scrape AWS sources for data and build the site"""
     scrape_ec2()
@@ -45,8 +51,8 @@ def scrape_ec2():
     try:
         scrape(ec2_file)
     except Exception as e:
-        print "ERROR: Unable to scrape data: %s" % e
-        print traceback.print_exc()
+        print("ERROR: Unable to scrape data: %s" % e)
+        print(traceback.print_exc())
 
 
 @task
@@ -56,16 +62,18 @@ def scrape_rds():
     try:
         rds_scrape(rds_file)
     except Exception as e:
-        print "ERROR: Unable to scrape RDS data: %s" % e
-        print traceback.print_exc()
+        print("ERROR: Unable to scrape RDS data: %s" % e)
+        print(traceback.print_exc())
 
 
 @task
 def serve():
     """Serve site contents locally for development"""
     os.chdir("www/")
-    httpd = SocketServer.TCPServer((FAB_HOST, int(FAB_PORT)), SimpleHTTPServer.SimpleHTTPRequestHandler)
-    print "Serving on http://{}:{}".format(httpd.socket.getsockname()[0], httpd.socket.getsockname()[1])
+    httpd = socketserver.TCPServer((FAB_HOST, int(FAB_PORT)),
+                                   http.server.SimpleHTTPRequestHandler)
+    print("Serving on http://{}:{}".format(
+        httpd.socket.getsockname()[0], httpd.socket.getsockname()[1]))
     httpd.serve_forever()
 
 
@@ -82,7 +90,7 @@ def bucket_create():
     conn = connect_s3(calling_format=BUCKET_CALLING_FORMAT)
     bucket = conn.create_bucket(BUCKET_NAME, policy='public-read')
     bucket.configure_website('index.html', 'error.html')
-    print 'Bucket %r created.' % BUCKET_NAME
+    print('Bucket %r created.' % BUCKET_NAME)
 
 
 @task
@@ -92,7 +100,7 @@ def bucket_delete():
         abort('Aborting at user request.')
     conn = connect_s3(calling_format=BUCKET_CALLING_FORMAT)
     conn.delete_bucket(BUCKET_NAME)
-    print 'Bucket %r deleted.' % BUCKET_NAME
+    print('Bucket %r deleted.' % BUCKET_NAME)
 
 
 @task
@@ -107,7 +115,7 @@ def deploy(root_dir='www'):
                 continue
             local_path = os.path.join(root, name)
             remote_path = local_path[len(root_dir)+1:]
-            print '%s -> %s/%s' % (local_path, BUCKET_NAME, remote_path)
+            print('%s -> %s/%s' % (local_path, BUCKET_NAME, remote_path))
             k = Key(bucket)
             k.key = remote_path
             k.set_contents_from_filename(local_path, policy='public-read')
@@ -116,5 +124,6 @@ def deploy(root_dir='www'):
 @task(default=True)
 def update():
     """Build and deploy the site"""
+    import pdb; pdb.set_trace()
     build()
     deploy()

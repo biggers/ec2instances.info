@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+from __future__ import print_function
 import requests
 import json
 from json import encoder
@@ -83,7 +84,7 @@ def scrape(output_file, input_file=None):
     }
 
     # loop through products, and only fetch available instances for now
-    for sku, product in data['products'].iteritems():
+    for sku, product in data['products'].items():
 
         if product['productFamily'] == 'Database Instance':
             # map the region
@@ -99,7 +100,8 @@ def scrape(output_file, input_file=None):
             attributes = product['attributes']
             attributes['region'] = region
             attributes['memory'] = attributes['memory'].split(' ')[0]
-            attributes['network_performance'] = attributes['networkPerformance']
+            attributes['network_performance'] = \
+                attributes['networkPerformance']
             attributes['family'] = attributes['instanceFamily']
             attributes['instance_type'] = attributes['instanceType']
             attributes['database_engine'] = attributes['databaseEngine']
@@ -108,14 +110,14 @@ def scrape(output_file, input_file=None):
             attributes['pricing'][region] = {}
             rds_instances[sku] = attributes
 
-            if attributes['instance_type'] not in instances.keys():
+            if attributes['instance_type'] not in list(instances.keys()):
                 instances[attributes['instance_type']] = attributes
                 instances[attributes['instance_type']]['pricing'] = {}
 
     # Parse ondemand pricing
-    for sku, offers in data['terms']['OnDemand'].iteritems():
-        for code, offer in offers.iteritems():
-            for key, dimension in offer['priceDimensions'].iteritems():
+    for sku, offers in data['terms']['OnDemand'].items():
+        for code, offer in offers.items():
+            for key, dimension in offer['priceDimensions'].items():
 
                 # skip these for now
                 if any(descr in dimension['description'].lower() for descr in ['transfer', 'global', 'storage', 'iops', 'requests', 'multi-az']):
@@ -141,9 +143,9 @@ def scrape(output_file, input_file=None):
     }
 
     # Parse reserved pricing
-    for sku, offers in data['terms']['Reserved'].iteritems():
-        for code, offer in offers.iteritems():
-            for key, dimension in offer['priceDimensions'].iteritems():
+    for sku, offers in data['terms']['Reserved'].items():
+        for code, offer in offers.items():
+            for key, dimension in offer['priceDimensions'].items():
 
                 instance = rds_instances[sku]
                 region = rds_instances[sku]['region']
@@ -171,9 +173,9 @@ def scrape(output_file, input_file=None):
     # print json.dumps(instances['db.m3.medium']['pricing']['eu-west-1']['MySQL'], indent=4)
 
     # Calculate all reserved effective pricings (upfront hourly + hourly price)
-    for instance_type, instance in instances.iteritems():
-        for region, pricing in instance['pricing'].iteritems():
-            for engine, prices in pricing.iteritems():
+    for instance_type, instance in instances.items():
+        for region, pricing in instance['pricing'].items():
+            for engine, prices in pricing.items():
                 if 'reserved' not in prices:
                     continue
                 try:
@@ -196,7 +198,7 @@ def scrape(output_file, input_file=None):
     # write output to file
     encoder.FLOAT_REPR = lambda o: format(o, '.5f')
     with open(output_file, 'w') as outfile:
-        json.dump(instances.values(), outfile, indent=4)
+        json.dump(list(instances.values()), outfile, indent=4)
 
 
 if __name__ == '__main__':

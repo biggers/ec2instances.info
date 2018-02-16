@@ -316,7 +316,7 @@
           ## note that the contents in these cost cells are overwritten by the JS change_cost() func, but the initial
           ## data here is used for sorting (and anyone with JS disabled...)
           ## for more info, see https://github.com/powdahound/ec2instances.info/issues/140
-          <td class="cost-ondemand cost-ondemand-${platform}" data-pricing='${json.dumps({r:p.get(platform, p.get('os',{})).get('ondemand') for r,p in inst['pricing'].iteritems()}) | h}'>
+          <td class="cost-ondemand cost-ondemand-${platform}" data-pricing='${json.dumps({r:p.get(platform, p.get('os',{})).get('ondemand') for r,p in inst['pricing'].items()}) | h}'>
             % if inst['pricing'].get('us-east-1', {}).get(platform, {}).get('ondemand', 'N/A') != "N/A":
               <span sort="${inst['pricing']['us-east-1'][platform]['ondemand']}">
                 $${inst['pricing']['us-east-1'][platform]['ondemand']} hourly
@@ -325,7 +325,7 @@
               <span sort="999999">unavailable</span>
             % endif
           </td>
-          <td class="cost-reserved cost-reserved-${platform}" data-pricing='${json.dumps({r:p.get(platform, p.get('os',{})).get('reserved', {}) for r,p in inst['pricing'].iteritems()}) | h}'>
+          <td class="cost-reserved cost-reserved-${platform}" data-pricing='${json.dumps({r:p.get(platform, p.get('os',{})).get('reserved', {}) for r,p in inst['pricing'].items()}) | h}'>
             % if inst['pricing'].get('us-east-1', {}).get(platform, {}).get('reserved', 'N/A') != "N/A":
               <span sort="${inst['pricing']['us-east-1'][platform]['reserved']['yrTerm1Standard.noUpfront']}">
                 $${inst['pricing']['us-east-1'][platform]['reserved']['yrTerm1Standard.noUpfront']} hourly
@@ -335,7 +335,7 @@
             % endif
           </td>
           % endfor
-          <td class="cost-ebs-optimized" data-pricing='${json.dumps({r:p.get('ebs', {}) for r,p in inst['pricing'].iteritems()}) | h}'>
+          <td class="cost-ebs-optimized" data-pricing='${json.dumps({r:p.get('ebs', {}) for r,p in inst['pricing'].items()}) | h}'>
            % if inst['ebs_max_bandwidth']:
               % if inst['pricing'].get('us-east-1', {}).get('ebs', 'N/A') != "N/A":
                 <span sort="${inst['pricing']['us-east-1']['ebs']}">

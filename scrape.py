@@ -1,9 +1,22 @@
 #!/usr/bin/env python
+from __future__ import division
+from __future__ import print_function
+from future import standard_library
+standard_library.install_aliases()
+from builtins import str
+from past.utils import old_div
+from builtins import object
 from lxml import etree
-import urllib2
+import urllib.request, urllib.error, urllib.parse
 import re
-import json
+import simplejson as json
 import locale
+
+from utils import (
+    to_bytes,
+    to_str,
+    get_openurl,
+)
 
 # Following advice from https://stackoverflow.com/a/1779324/216138
 # The locale must be installed in the system, and it must be one where ',' is
@@ -100,9 +113,11 @@ class Instance(object):
 
 
 def sanitize_instance_type(instance_type):
-    """Typos and other bad data are common in the instance type colums for some reason"""
+    """Typos and other bad data are common in the
+       instance type colums for some reason
+    """
     # Remove random whitespace
-    instance_type = re.sub(r"\s+", "", instance_type, flags=re.UNICODE)
+    instance_type = re.sub(r"\s+", "", to_str(instance_type), flags=re.UNICODE)
 
     # Correct typos
     typo_corrections = {
@@ -116,7 +131,8 @@ def sanitize_instance_type(instance_type):
 def parse_prev_generation_instance(tr):
     i = Instance()
     cols = tr.xpath('td')
-    assert len(cols) == 8, "Expected 8 columns in the table, but got %d" % len(cols)
+    assert len(cols) == 8, \
+        "Expected 8 columns in the table, but got %d" % len(cols)
     i.family = totext(cols[0])
     i.instance_type = totext(cols[1])
     archs = totext(cols[2])
@@ -225,21 +241,25 @@ def parse_instance_fpgas(tr, by_type):
 
 def scrape_instances():
     inst2family = dict()
-    tree = etree.parse(urllib2.urlopen("http://docs.aws.amazon.com/AWSEC2/latest/UserGuide/instance-types.html"),
-                       etree.HTMLParser())
+    tree = etree.parse(
+        get_openurl("http://docs.aws.amazon.com/AWSEC2/latest/UserGuide/instance-types.html"),
+        etree.HTMLParser())
     details = tree.xpath('//div[@class="table-contents"]//table')[0]
     hdrs = details.xpath('tr')[0]
     if totext(hdrs[0]).lower() == 'instance family' and 'current generation' in totext(hdrs[1]).lower():
         _rindex_family(inst2family, details)
     details = tree.xpath('//div[@class="table-contents"]//table')[1]
     hdrs = details.xpath('tr')[0]
-    if totext(hdrs[0]).lower() == 'instance family' and 'previous generation' in totext(hdrs[1]).lower():
+    if (totext(hdrs[0]).lower() == 'instance family' and
+        'previous generation' in totext(hdrs[1]).lower()):
         _rindex_family(inst2family, details)
+
     assert len(inst2family) > 0, "Failed to find instance family info"
     features_details = tree.xpath('//div[@class="table-contents"]//table')[2]
 
     current_gen = []
-    tree = etree.parse(urllib2.urlopen("http://aws.amazon.com/ec2/instance-types/"), etree.HTMLParser())
+    tree = etree.parse(get_openurl(
+        "http://aws.amazon.com/ec2/instance-types/"), etree.HTMLParser())
     details_tables = tree.xpath('//table[count(tbody/tr[1]/td)>=12]')
     for details in details_tables:
         rows = details.xpath('tbody/tr')[1:]
@@ -254,7 +274,9 @@ def scrape_instances():
         for r in t.xpath('tbody/tr')[1:]:
             parse_instance_fpgas(r, by_type)
 
-    tree = etree.parse(urllib2.urlopen("http://aws.amazon.com/ec2/previous-generation/"), etree.HTMLParser())
+    tree = etree.parse(get_openurl(
+        "http://aws.amazon.com/ec2/previous-generation/"),
+                       etree.HTMLParser())
     details = tree.xpath('//table')[7]
     rows = details.xpath('tbody/tr')[1:]
     assert len(rows) > 0, "Didn't find any table rows."
@@ -263,8 +285,12 @@ def scrape_instances():
     all_gen = prev_gen + current_gen
 
     hdrs = features_details.xpath('tr')[0]
-    if totext(hdrs[0]).lower() == '' and 'ipv6 support' in totext(hdrs[7]).lower():
-        feature_support(features_details, all_gen)
+    try:
+        if (totext(hdrs[0]).lower() == '' and
+            'ipv6 support' in totext(hdrs[7]).lower()):
+            feature_support(features_details, all_gen)
+    except IndexError as e:
+        print(e)
 
     return all_gen
 
@@ -436,13 +462,15 @@ def add_pricing_info(instances):
 
 
 def fetch_data(url):
-    content = urllib2.urlopen(url).read()
+    raw = get_openurl(url).read()
+    content = to_str(raw)
     try:
         pricing = json.loads(content)
     except ValueError:
         # if the data isn't compatible JSON, try to parse as jsonP
+        # convert into valid json
         json_string = re.sub(r"(\w+):", r'"\1":',
-                             content[content.index('callback(') + 9: -2])  # convert into valid json
+                             content[content.index('callback(') + 9: -2])
         pricing = json.loads(json_string)
 
     return pricing
@@ -450,15 +478,19 @@ def fetch_data(url):
 
 def add_eni_info(instances):
     eni_url = "http://docs.aws.amazon.com/AWSEC2/latest/UserGuide/using-eni.html"
-    tree = etree.parse(urllib2.urlopen(eni_url), etree.HTMLParser())
+    tree = etree.parse(get_openurl(eni_url), etree.HTMLParser())
     table = tree.xpath('//div[@class="table-contents"]//table')[0]
     rows = table.xpath('.//tr[./td]')
     by_type = {i.instance_type: i for i in instances}
 
     for r in rows:
-        instance_type = etree.tostring(r[0], method='text').strip()
-        max_enis = locale.atoi(etree.tostring(r[1], method='text'))
-        ip_per_eni = locale.atoi(etree.tostring(r[2], method='text'))
+        instance_type = to_str(etree.tostring(r[0], method='text')).strip()
+        max_enis = locale.atoi(
+            to_str(etree.tostring(r[1], method='text')).strip()
+        )
+        ip_per_eni = locale.atoi(
+            to_str(etree.tostring(r[2], method='text')).strip()
+        )
         if instance_type not in by_type:
             print("Unknown instance type: {}".format(instance_type))
             continue
@@ -469,7 +501,7 @@ def add_eni_info(instances):
 
 def add_ebs_info(instances):
     ebs_url = "http://docs.aws.amazon.com/AWSEC2/latest/UserGuide/EBSOptimized.html"
-    tree = etree.parse(urllib2.urlopen(ebs_url), etree.HTMLParser())
+    tree = etree.parse(get_openurl(ebs_url), etree.HTMLParser())
     table = tree.xpath('//div[@class="table-contents"]//table')[0]
     rows = table.xpath('tr')
     by_type = {i.instance_type: i for i in instances}
@@ -507,7 +539,7 @@ def add_linux_ami_info(instances):
     """
     checkmark_char = u'\u2713'
     url = "http://aws.amazon.com/amazon-linux-ami/instance-type-matrix/"
-    tree = etree.parse(urllib2.urlopen(url), etree.HTMLParser())
+    tree = etree.parse(get_openurl(url), etree.HTMLParser())
     table = tree.xpath('//div[@class="aws-table"]/table')[0]
     rows = table.xpath('.//tr[./td]')[1:]  # ignore header
 
@@ -560,7 +592,7 @@ def add_instance_storage_details(instances):
     """Add information about instance storage features."""
 
     url = "http://docs.aws.amazon.com/AWSEC2/latest/UserGuide/InstanceStorage.html"
-    tree = etree.parse(urllib2.urlopen(url), etree.HTMLParser())
+    tree = etree.parse(get_openurl(url), etree.HTMLParser())
     table = tree.xpath('//div[@class="table-contents"]/table')[0]
     rows = table.xpath('.//tr[./td]')
 
@@ -608,9 +640,9 @@ def add_cpu_details(instances):
 
     by_type = {i.instance_type: i for i in instances}
     url = "https://aws.amazon.com/ec2/instance-types/#instance-type-matrix"
-    tree = etree.parse(urllib2.urlopen(url), etree.HTMLParser())
+    tree = etree.parse(get_openurl(url), etree.HTMLParser())
     tables = tree.xpath('//div[@class="aws-table"]//table')
-    tables = filter(lambda x: x.xpath('.//tr//td')[0].text == 'Instance Type', tables)
+    tables = [x for x in tables if x.xpath('.//tr//td')[0].text == 'Instance Type']
     rows = [r for t in tables for r in t.xpath('.//tr') if not r[0].text == 'Instance Type']
     for r in rows:
         instance_type = sanitize_instance_type(etree.tostring(r[0], method='text'))
@@ -627,7 +659,7 @@ def add_cpu_details(instances):
 
 def add_t2_credits(instances):
     tree = etree.parse(
-        urllib2.urlopen("http://docs.aws.amazon.com/AWSEC2/latest/UserGuide/t2-credits-baseline-concepts.html"),
+        get_openurl("http://docs.aws.amazon.com/AWSEC2/latest/UserGuide/t2-credits-baseline-concepts.html"),
         etree.HTMLParser())
     table = tree.xpath('//div[@class="table-contents"]//table')[0]
     rows = table.xpath('.//tr[./td]')
@@ -639,7 +671,7 @@ def add_t2_credits(instances):
         if len(r) > 1:
             inst = by_type[totext(r[0])]
             creds_per_hour = locale.atof(totext(r[1]))
-            inst.base_performance = creds_per_hour / 60
+            inst.base_performance = old_div(creds_per_hour, 60)
             inst.burst_minutes = creds_per_hour * 24 / inst.vCPU
 
 

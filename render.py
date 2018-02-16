@@ -1,3 +1,6 @@
+from __future__ import division
+from __future__ import print_function
+from past.utils import old_div
 import mako.template
 import mako.lookup
 import mako.exceptions
@@ -29,7 +32,7 @@ def network_sort(inst):
 
 def add_cpu_detail(i):
     try:
-        i['ECU_per_vcpu'] = i['ECU'] / i['vCPU']
+        i['ECU_per_vcpu'] = old_div(i['ECU'], i['vCPU'])
     except:
         # these will be instances with variable/burstable ECU
         i['ECU_per_vcpu'] = 'unknown'
@@ -49,18 +52,18 @@ def render(data_file, template_file, destination_file):
     """Build the HTML content from scraped data"""
     lookup = mako.lookup.TemplateLookup(directories=['.'])
     template = mako.template.Template(filename=template_file, lookup=lookup)
-    print "Loading data from %s..." % data_file
+    print("Loading data from %s..." % data_file)
     with open(data_file) as f:
         instances = json.load(f)
     for i in instances:
         add_render_info(i)
-    print "Rendering to %s..." % destination_file
+    print("Rendering to %s..." % destination_file)
     generated_at = datetime.datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S UTC')
     with open(destination_file, 'w') as fh:
         try:
             fh.write(template.render(instances=instances, generated_at=generated_at))
         except:
-            print mako.exceptions.text_error_template().render()
+            print(mako.exceptions.text_error_template().render())
 
 if __name__ == '__main__':
     render('www/instances.json', 'in/index.html.mako', 'www/index.html')
