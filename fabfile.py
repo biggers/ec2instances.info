@@ -20,7 +20,6 @@ from fabric.contrib.console import confirm
 from rds import scrape as rds_scrape
 from render import render
 from scrape import scrape
-from debugging import debug_on
 
 BUCKET_NAME = 'www.ec2instances.info'
 
@@ -36,7 +35,6 @@ FAB_PORT = os.getenv('FAB_PORT', '9999')
 
 
 @task
-@debug_on(IndexError, KeyError, TypeError)
 def build():
     """Scrape AWS sources for data and build the site"""
     scrape_ec2()
@@ -45,11 +43,13 @@ def build():
 
 
 @task
-def scrape_ec2():
-    """Scrape EC2 data from AWS and save to local file"""
-    ec2_file = 'www/instances.json'
+def scrape_ec2(ec2_file='www/instances.json', list_dump='True'):
+    """ Scrape EC2 data from AWS and save to local file
+        fab scrape_ec2:ec2_file=ec2.json,list_dump=False
+    """
     try:
-        scrape(ec2_file)
+        list_dumpr = {'True': True, 'False': False}.get(list_dump, True)
+        scrape(ec2_file, list_dumpr)
     except Exception as e:
         print("ERROR: Unable to scrape data: %s" % e)
         print(traceback.print_exc())
@@ -124,6 +124,5 @@ def deploy(root_dir='www'):
 @task(default=True)
 def update():
     """Build and deploy the site"""
-    import pdb; pdb.set_trace()
     build()
     deploy()

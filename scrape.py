@@ -67,8 +67,8 @@ class Instance(object):
         self.vpc_only = False
 
     def to_dict(self):
-        d = dict(family=self.family,
-                 instance_type=self.instance_type,
+        d = dict(instance_type=self.instance_type,
+                 family=self.family,
                  pretty_name=self.pretty_name,
                  arch=self.arch,
                  vCPU=self.vCPU,
@@ -511,11 +511,15 @@ def add_ebs_info(instances):
             continue
 
         cols = row.xpath('td')
-        # TODO: Support the asterisk, which means: "These instance types can support maximum
-        # performance for 30 minutes at least once every 24 hours. For example, c5.large
-        # instances can deliver 281 MB/s for 30 minutes at least once every 24 hours. If you
-        # have a workload that requires sustained maximum performance for longer than 30
-        # minutes, select an instance type based on the following baseline performance."
+
+        # TODO: Support the asterisk, which means: "These instance types
+        # can support maximum performance for 30 minutes at least once
+        # every 24 hours. For example, c5.large instances can deliver
+        # 281 MB/s for 30 minutes at least once every 24 hours. If you
+        # have a workload that requires sustained maximum performance
+        # for longer than 30 minutes, select an instance type based on
+        # the following baseline performance."
+
         instance_type = sanitize_instance_type(totext(cols[0]).replace("*", ""))
         ebs_optimized_by_default = totext(cols[1]) == 'Yes'
         ebs_max_bandwidth = locale.atof(totext(cols[2]))
@@ -723,7 +727,7 @@ def add_pretty_names(instances):
         i.pretty_name = ' '.join([b for b in bits if b])
 
 
-def scrape(data_file):
+def scrape(data_file, list_dumpr=True):
     """Scrape AWS to get instance data"""
     print("Parsing instance types...")
     all_instances = scrape_instances()
@@ -747,11 +751,15 @@ def scrape(data_file):
     add_cpu_details(all_instances)
 
     with open(data_file, 'w') as f:
-        json.dump([i.to_dict() for i in all_instances],
-                  f,
-                  indent=2,
-                  sort_keys=True,
-                  separators=(',', ': '))
+        if list_dumpr:
+            json.dump([i.to_dict() for i in all_instances],
+                      f,
+                      indent=2,
+                      sort_keys=True,
+                      separators=(',', ': '))
+        else:
+            for i in all_instances:
+                print(json.dumps(i.to_dict(), sort_keys=False), file=f)
 
 
 if __name__ == '__main__':
